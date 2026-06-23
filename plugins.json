@@ -7,24 +7,11 @@
             "version": "1.0.0",
             "description": "Крутилка для управления громкостью MusicHub",
             "author": "MusicHub Labs",
-            "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/volume-control/icon.png",
-            "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/volume-control/volume-control-v1.0.0.zip",
+            "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/Volume-Control/icon.png",
+            "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/Volume-Control/volume-control-v1.0.0.zip",
             "category": "utils",
             "updated": "2026-06-23",
             "permissions": ["storage"],
-            "requires": "3.0.0"
-        },
-        {
-            "id": "eq-visualizer",
-            "name": "EQ Visualizer",
-            "version": "1.0.0",
-            "description": "Визуализация эквалайзера в реальном времени",
-            "author": "MusicHub Labs",
-            "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/eq-visualizer/icon.png",
-            "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/eq-visualizer/eq-visualizer-v1.0.0.zip",
-            "category": "visualization",
-            "updated": "2026-06-23",
-            "permissions": ["storage", "media"],
             "requires": "3.0.0"
         }
     ]
