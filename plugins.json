@@ -18,41 +18,27 @@
             "id": "sleep-timer",
             "name": "Sleep Timer",
             "version": "1.0.0",
-            "description": "Таймер для автоматической остановки музыки с удобным вводом времени",
+            "description": "Таймер для автоматической остановки музыки",
             "author": "MusicHub Labs",
             "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/Sleep-Timer/icon.png",
             "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/Sleep-Timer/sleep-timer-v1.0.0.zip",
             "category": "utils",
             "updated": "2026-06-23",
             "permissions": ["storage", "notifications"],
-            "requires": "3.0.0",
-            "features": [
-                "⏰ Установка времени в формате HH:MM:SS",
-                "🎨 Акцентный цвет из приложения",
-                "⌨️ Горячие клавиши: Enter — Старт/Пауза, Escape — Стоп",
-                "📊 Визуальный прогресс-бар",
-                "🔁 Пресеты: 5м, 10м, 15м, 30м, 1ч, 2ч"
-            ]
+            "requires": "3.0.0"
         },
         {
             "id": "eq-visualizer",
             "name": "EQ Visualizer",
             "version": "1.0.0",
-            "description": "Визуализация эквалайзера в реальном времени с захватом звука",
+            "description": "Визуализация эквалайзера в реальном времени",
             "author": "MusicHub Labs",
             "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/EQ-Visualizer/icon.png",
             "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/EQ-Visualizer/eq-visualizer-v1.0.0.zip",
             "category": "visualization",
             "updated": "2026-06-23",
             "permissions": ["storage", "media"],
-            "requires": "3.0.0",
-            "features": [
-                "🎵 Захват звука через WebSocket от C#",
-                "🎨 Акцентный цвет из приложения",
-                "📊 3 режима: Полоски, Волна, Круг",
-                "🔴 Определение Play/Pause из приложения",
-                "🎨 Смена цвета кнопкой"
-            ]
+            "requires": "3.0.0"
         }
     ]
 }
