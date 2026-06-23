@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleep Timer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.3s;
+        }
+        .custom-titlebar {
+            position: fixed; top: 0; left: 0; right: 0; height: 38px;
+            background: #141414; display: flex; align-items: center;
+            padding: 0 12px; -webkit-app-region: drag;
+            border-bottom: 1px solid #2a2a2a; z-index: 1000;
+        }
+        .custom-titlebar .title {
+            flex: 1; font-size: 13px; font-weight: 600; color: #ddd;
+            -webkit-app-region: drag;
+        }
+        .custom-titlebar .controls {
+            display: flex; gap: 8px; -webkit-app-region: no-drag;
+        }
+        .custom-titlebar .controls button {
+            background: none; border: none; color: #666; font-size: 14px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            transition: all 0.2s; line-height: 1;
+        }
+        .custom-titlebar .controls .close-btn:hover {
+            background: #ff4444; color: #fff;
+        }
+        .container {
+            margin-top: 38px; padding: 24px;
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        /* === ТАЙМЕР === */
+        .timer-wrapper {
+            position: relative;
+            margin: 12px 0 16px;
+            cursor: text;
+        }
+        .timer-display {
+            font-size: 64px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 4px;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            background: rgba(255,255,255,0.03);
+            user-select: none;
+            position: relative;
+            transition: color 0.3s, border-color 0.3s;
+        }
+        .timer-display.inactive { color: #666; border-color: transparent; }
+        .timer-display.active { color: var(--accent, #1DB954); border-color: var(--accent, #1DB954); }
+        .timer-display.warning { color: #ff6b6b; border-color: #ff6b6b; animation: blink 1s infinite; }
+        .timer-display.editing {
+            border-color: var(--accent, #1DB954);
+            background: rgba(255,255,255,0.06);
+            box-shadow: 0 0 24px var(--accent-glow, rgba(29, 185, 84, 0.1));
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        /* === ПРОГРЕСС === */
+        .progress-bar {
+            width: 100%; height: 4px;
+            background: #333; border-radius: 4px;
+            margin: 8px 0 16px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--accent, #1DB954);
+            width: 0%;
+            transition: width 0.5s, background 0.3s;
+            border-radius: 4px;
+        }
+        
+        /* === ПРЕСЕТЫ === */
+        .presets {
+            display: flex; gap: 6px;
+            justify-content: center; flex-wrap: wrap;
+            margin: 8px 0 14px;
+        }
+        .presets button {
+            padding: 6px 14px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: transparent;
+            color: #888;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .presets button:hover {
+            border-color: var(--accent, #1DB954);
+            color: #fff;
+        }
+        .presets button.active {
+            border-color: var(--accent, #1DB954);
+            background: var(--accent, #1DB954);
+            color: #000;
+        }
+        
+        /* === КНОПКИ === */
+        .buttons {
+            display: flex; gap: 10px;
+            justify-content: center;
+            margin: 8px 0 12px;
+        }
+        .buttons button {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 80px;
+        }
+        .buttons button:hover { transform: scale(1.04); }
+        .buttons button:active { transform: scale(0.95); }
+        .btn-start {
+            background: var(--accent, #1DB954);
+            color: #000;
+        }
+        .btn-start:hover {
+            box-shadow: 0 0 24px var(--accent-glow, rgba(29, 185, 84, 0.3));
+        }
+        .btn-stop {
+            background: #ff4444;
+            color: #fff;
+        }
+        .btn-stop:hover {
+            box-shadow: 0 0 24px rgba(255, 68, 68, 0.3);
+        }
+        
+        /* === СТАТУС === */
+        .status {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #666;
+            transition: color 0.3s;
+        }
+        .status.active { color: var(--accent, #1DB954); }
+        .status.warning { color: #ff6b6b; }
+        
+        .timer-hint {
+            font-size: 11px;
+            color: #555;
+            margin-top: 4px;
+            transition: color 0.3s;
+        }
+        .timer-hint.active-hint {
+            color: var(--accent, #1DB954);
+        }
+        
+        @media (max-width: 400px) {
+            .timer-display { font-size: 42px; letter-spacing: 2px; padding: 6px 12px; }
+            .buttons button { padding: 8px 16px; font-size: 12px; min-width: 60px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="custom-titlebar">
+        <span class="title">⏰ Sleep Timer</span>
+        <div class="controls">
+            <button class="close-btn" onclick="window.close()">✕</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="timer-wrapper">
+            <div class="timer-display inactive" id="timerDisplay" tabindex="0">00:00:00</div>
+            <div class="timer-hint" id="timerHint">💡 Нажми на время чтобы изменить</div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        
+        <div class="presets" id="presets">
+            <button data-seconds="300">5м</button>
+            <button data-seconds="600">10м</button>
+            <button data-seconds="900">15м</button>
+            <button data-seconds="1800">30м</button>
+            <button data-seconds="3600">1ч</button>
+            <button data-seconds="7200">2ч</button>
+        </div>
+        
+        <div class="buttons">
+            <button class="btn-start" id="startBtn">▶ Старт</button>
+            <button class="btn-stop" id="stopBtn">⏹ Стоп</button>
+        </div>
+        
+        <div class="status" id="status">Готов</div>
+    </div>
+    
+    <script>
+        // ============================================================
+        // SLEEP TIMER — АКЦЕНТНЫЙ ЦВЕТ КАК В EQ VISUALIZER
+        // ============================================================
+        
+        let totalSeconds = 300;
+        let remainingSeconds = 300;
+        let timerInterval = null;
+        let isActive = false;
+        let isPaused = false;
+        let isEditing = false;
+        let editBuffer = '';
+        let accentColor = '#1DB954';
+        
+        const display = document.getElementById('timerDisplay');
+        const progressFill = document.getElementById('progressFill');
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const timerHint = document.getElementById('timerHint');
+        
+        // === ФОРМАТИРОВАНИЕ ===
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+        
+        function parseTimeInput(text) {
+            const digits = text.replace(/\D/g, '');
+            if (digits.length === 0) return null;
+            
+            let h = 0, m = 0, s = 0;
+            const len = digits.length;
+            
+            if (len <= 2) {
+                s = parseInt(digits) || 0;
+            } else if (len <= 4) {
+                m = parseInt(digits.slice(0, -2)) || 0;
+                s = parseInt(digits.slice(-2)) || 0;
+            } else {
+                h = parseInt(digits.slice(0, -4)) || 0;
+                m = parseInt(digits.slice(-4, -2)) || 0;
+                s = parseInt(digits.slice(-2)) || 0;
+            }
+            
+            m = Math.min(59, m);
+            s = Math.min(59, s);
+            return h * 3600 + m * 60 + s;
+        }
+        
+        // === ОБНОВЛЕНИЕ UI ===
+        function updateDisplay(keepEdit = false) {
+            if (!keepEdit || !isEditing) {
+                display.textContent = formatTime(remainingSeconds);
+            }
+            
+            const progress = totalSeconds > 0 ? ((totalSeconds - remainingSeconds) / totalSeconds) * 100 : 0;
+            progressFill.style.width = `${Math.min(100, progress)}%`;
+            
+            if (isActive) {
+                display.className = 'timer-display active';
+                if (remainingSeconds <= 10) {
+                    display.className = 'timer-display warning';
+                    statusEl.className = 'status warning';
+                    statusEl.textContent = `⚠️ Осталось ${formatTime(remainingSeconds)}`;
+                } else {
+                    statusEl.className = 'status active';
+                    statusEl.textContent = `⏳ Осталось ${formatTime(remainingSeconds)}`;
+                }
+                startBtn.textContent = '⏸ Пауза';
+                timerHint.textContent = '⏱️ Таймер запущен';
+                timerHint.className = 'timer-hint active-hint';
+            } else {
+                display.className = 'timer-display inactive';
+                statusEl.className = 'status';
+                statusEl.textContent = remainingSeconds > 0 ? `Готов: ${formatTime(remainingSeconds)}` : 'Готов';
+                startBtn.textContent = '▶ Старт';
+                timerHint.textContent = isEditing ? '✏️ Введи время (например 130 = 1:30)' : '💡 Нажми на время чтобы изменить';
+                timerHint.className = 'timer-hint';
+            }
+        }
+        
+        // === УПРАВЛЕНИЕ ТАЙМЕРОМ ===
+        function startTimer(seconds) {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            if (seconds <= 0) {
+                statusEl.textContent = '⏰ Время вышло!';
+                statusEl.className = 'status warning';
+                return;
+            }
+            
+            totalSeconds = seconds;
+            remainingSeconds = seconds;
+            isActive = true;
+            isPaused = false;
+            
+            updateDisplay();
+            
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                updateDisplay();
+                
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    isActive = false;
+                    startBtn.textContent = '▶ Старт';
+                    statusEl.textContent = '⏰ Время вышло! Музыка остановлена';
+                    statusEl.className = 'status warning';
+                    display.className = 'timer-display warning';
+                    
+                    fetch('http://localhost:9876/media-stop', { method: 'POST' }).catch(() => {});
+                    if (window.parent && window.parent.showToast) {
+                        window.parent.showToast('⏰ Время вышло! Музыка остановлена', 'info');
+                    }
+                }
+            }, 1000);
+        }
+        
+        function toggleTimer() {
+            if (isActive) {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                isActive = false;
+                isPaused = true;
+                startBtn.textContent = '▶ Продолжить';
+                statusEl.textContent = `⏸ На паузе (${formatTime(remainingSeconds)})`;
+                statusEl.className = 'status';
+                display.className = 'timer-display inactive';
+            } else {
+                if (isPaused) {
+                    isActive = true;
+                    isPaused = false;
+                    startTimer(remainingSeconds);
+                } else {
+                    if (remainingSeconds <= 0) {
+                        statusEl.textContent = '⚠️ Установи время';
+                        statusEl.className = 'status warning';
+                        return;
+                    }
+                    startTimer(remainingSeconds);
+                }
+            }
+        }
+        
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            isActive = false;
+            isPaused = false;
+            remainingSeconds = totalSeconds;
+            updateDisplay();
+            statusEl.textContent = '⏹ Таймер остановлен';
+            statusEl.className = 'status';
+            fetch('http://localhost:9876/media-stop', { method: 'POST' }).catch(() => {});
+        }
+        
+        // === РЕДАКТИРОВАНИЕ ===
+        function startEditing() {
+            if (isActive || isPaused) return;
+            isEditing = true;
+            editBuffer = '';
+            display.textContent = '00:00:00';
+            display.className = 'timer-display editing';
+            timerHint.textContent = '✏️ Введи время (например 130 = 1:30)';
+            timerHint.className = 'timer-hint active-hint';
+            display.focus();
+        }
+        
+        function handleEditInput(e) {
+            if (!isEditing) return;
+            e.preventDefault();
+            
+            const key = e.key;
+            
+            if (key === 'Enter') {
+                const seconds = parseTimeInput(editBuffer);
+                if (seconds !== null && seconds > 0) {
+                    totalSeconds = seconds;
+                    remainingSeconds = seconds;
+                }
+                isEditing = false;
+                updateDisplay();
+                timerHint.textContent = '💡 Нажми на время чтобы изменить';
+                timerHint.className = 'timer-hint';
+                display.blur();
+                return;
+            }
+            
+            if (key === 'Escape') {
+                isEditing = false;
+                updateDisplay();
+                timerHint.textContent = '💡 Нажми на время чтобы изменить';
+                timerHint.className = 'timer-hint';
+                display.blur();
+                return;
+            }
+            
+            if (key === 'Backspace') {
+                editBuffer = editBuffer.slice(0, -1);
+            } else if (/[0-9]/.test(key)) {
+                if (editBuffer.length < 6) {
+                    editBuffer += key;
+                }
+            } else {
+                return;
+            }
+            
+            const digits = editBuffer.padStart(6, '0');
+            display.textContent = `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}`;
+        }
+        
+        // === АКЦЕНТНЫЙ ЦВЕТ — КАК В EQ VISUALIZER ===
+        function listenToStatus() {
+            try {
+                if (window.parent && window.parent.electronAPI) {
+                    // Получаем статус через onPluginStatus
+                    window.parent.electronAPI.onPluginStatus((event, status) => {
+                        console.log('📥 Статус из renderer:', status);
+                        
+                        if (status.accentColor && status.accentColor !== '') {
+                            accentColor = status.accentColor;
+                            applyAccentColor(accentColor);
+                        }
+                    });
+                    
+                    // Запрашиваем текущий статус
+                    window.parent.electronAPI.getPluginStatus?.().then(status => {
+                        if (status && status.accentColor) {
+                            applyAccentColor(status.accentColor);
+                        }
+                    }).catch(() => {});
+                }
+            } catch (e) {
+                console.log('⚠️ Не удалось подключиться к статусу renderer');
+                // Fallback через DOM
+                tryGetColorFromDOM();
+            }
+        }
+        
+        function tryGetColorFromDOM() {
+            try {
+                if (window.parent && window.parent.document) {
+                    const color = window.parent.getComputedStyle(
+                        window.parent.document.documentElement
+                    ).getPropertyValue('--accent-color').trim();
+                    if (color && color !== '') {
+                        accentColor = color;
+                        applyAccentColor(color);
+                    }
+                }
+            } catch (e) {}
+        }
+        
+        function applyAccentColor(color) {
+            document.documentElement.style.setProperty('--accent', color);
+            const rgb = hexToRgb(color);
+            if (rgb) {
+                document.documentElement.style.setProperty('--accent-glow', 
+                    `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
+            }
+        }
+        
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+        
+        // === ПРЕСЕТЫ ===
+        document.querySelectorAll('.presets button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (isActive) {
+                    if (!confirm(`Установить таймер на ${btn.textContent}?`)) return;
+                    stopTimer();
+                }
+                const seconds = parseInt(btn.dataset.seconds);
+                totalSeconds = seconds;
+                remainingSeconds = seconds;
+                if (isEditing) {
+                    isEditing = false;
+                    display.blur();
+                }
+                updateDisplay();
+                statusEl.textContent = `Установлено ${btn.textContent}`;
+                statusEl.className = 'status';
+                
+                document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // === СОБЫТИЯ ===
+        display.addEventListener('click', startEditing);
+        display.addEventListener('keydown', handleEditInput);
+        display.addEventListener('blur', () => {
+            if (isEditing) {
+                const seconds = parseTimeInput(editBuffer);
+                if (seconds !== null && seconds > 0) {
+                    totalSeconds = seconds;
+                    remainingSeconds = seconds;
+                }
+                isEditing = false;
+                updateDisplay();
+                timerHint.textContent = '💡 Нажми на время чтобы изменить';
+                timerHint.className = 'timer-hint';
+            }
+        });
+        
+        startBtn.addEventListener('click', toggleTimer);
+        stopBtn.addEventListener('click', stopTimer);
+        
+        // === ГОРЯЧИЕ КЛАВИШИ ===
+        document.addEventListener('keydown', (e) => {
+            if (isEditing) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                toggleTimer();
+            }
+            if (e.key === 'Escape') {
+                stopTimer();
+            }
+            if (e.key === ' ' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                toggleTimer();
+            }
+        });
+        
+        // === ЗАПУСК ===
+        totalSeconds = 300;
+        remainingSeconds = 300;
+        updateDisplay();
+        
+        // Подписываемся на статус из renderer (как в EQ Visualizer)
+        setTimeout(listenToStatus, 500);
+        
+        console.log('⏰ Sleep Timer Plugin loaded!');
+        console.log('🎨 Акцентный цвет синхронизирован с приложением');
+    </script>
+</body>
+</html>
