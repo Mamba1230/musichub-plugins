@@ -1,0 +1,11 @@
+{
+    "id": "EQ-VISUALIZER",
+    "name": "EQ VISUALIZER",
+    "version": "1.0.0",
+    "description": "Визуализация эквалайзера",
+    "author": "MusicHub Labs",
+    "icon": "icon.png",
+    "main": "main.js",
+    "renderer": "renderer.js",
+    "permissions": ["storage", "webview"]
+}

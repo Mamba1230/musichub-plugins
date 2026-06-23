@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EQ Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .custom-titlebar {
+            position: fixed; top: 0; left: 0; right: 0; height: 38px;
+            background: #141414; display: flex; align-items: center;
+            padding: 0 12px; -webkit-app-region: drag;
+            border-bottom: 1px solid #2a2a2a; z-index: 1000;
+            flex-shrink: 0;
+        }
+        .custom-titlebar .title {
+            flex: 1; font-size: 13px; font-weight: 600; color: #ddd;
+            -webkit-app-region: drag;
+        }
+        .custom-titlebar .controls {
+            display: flex; gap: 8px; -webkit-app-region: no-drag;
+        }
+        .custom-titlebar .controls button {
+            background: none; border: none; color: #666; font-size: 14px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .custom-titlebar .controls .close-btn:hover {
+            background: #ff4444; color: #fff;
+        }
+        canvas {
+            flex: 1;
+            width: 100%;
+            height: calc(100% - 38px);
+            margin-top: 38px;
+            display: block;
+        }
+        .controls-bottom {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            padding: 6px 14px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .controls-bottom button {
+            background: none; border: none; color: #888; font-size: 16px;
+            cursor: pointer; padding: 4px 8px; transition: color 0.2s;
+        }
+        .controls-bottom button:hover { color: #fff; }
+        .controls-bottom .active { color: var(--accent, #1DB954); }
+        .status-text {
+            font-size: 11px; color: #555; padding: 4px 0;
+            min-width: 80px; text-align: center;
+        }
+        .status-text.playing { color: var(--accent, #1DB954); }
+        .status-text.audio { color: #4ecdc4; }
+    </style>
+</head>
+<body>
+    <div class="custom-titlebar">
+        <span class="title">🎨 EQ Visualizer</span>
+        <div class="controls">
+            <button class="close-btn" onclick="window.close()">✕</button>
+        </div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls-bottom">
+        <button id="modeBtn" title="Сменить режим">🎨</button>
+
+        <span class="status-text" id="statusText">⏸ Пауза</span>
+    </div>
+    
+    <script>
+        // ============================================================
+        // EQ VISUALIZER — ЗАХВАТ ЗВУКА (C#) + СТАТУС (renderer)
+        // ============================================================
+        
+        // === DOM ===
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('statusText');
+        const modeBtn = document.getElementById('modeBtn');
+        
+        // === НАСТРОЙКИ ===
+        const BAR_COUNT = 32;
+        let mode = 0;
+        const COLORS = ['#1DB954', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe', '#fd79a8', '#00b894'];
+        let colorIndex = 0;
+        let accentColor = '#1DB954';
+        
+        let bars = [];
+        let isPlaying = false;
+        let hasAudio = false;
+        let animFrame = null;
+        
+        // === АУДИО ОТ C# (WebSocket) ===
+        let audioWs = null;
+        let audioConnected = false;
+        let audioData = new Float32Array(1024);
+        let useFakeData = false;
+        let demoMode = true;
+        
+        function connectToAudio() {
+            try {
+                audioWs = new WebSocket('ws://localhost:9876/audio-stream');
+                audioWs.binaryType = 'arraybuffer';
+                
+                audioWs.onopen = () => {
+                    console.log('✅ EQ: Подключен к аудиопотоку C#');
+                    audioConnected = true;
+                    hasAudio = true;
+                    demoMode = false;
+                    statusText.textContent = '🎧 Аудио есть';
+                    statusText.className = 'status-text audio';
+                };
+                
+                audioWs.onmessage = (event) => {
+                    if (event.data instanceof ArrayBuffer) {
+                        const buffer = event.data;
+                        if (buffer.byteLength > 4) {
+                            const dataView = new DataView(buffer);
+                            const pcmLen = dataView.getInt32(0, true);
+                            if (pcmLen > 4) {
+                                const samples = new Float32Array(buffer, 4, Math.min(pcmLen / 4, 1024));
+                                audioData = samples;
+                                hasAudio = true;
+                                demoMode = false;
+                            }
+                        }
+                    }
+                };
+                
+                audioWs.onclose = () => {
+                    console.log('❌ EQ: Отключен от аудиопотока C#');
+                    audioConnected = false;
+                    hasAudio = false;
+                    setTimeout(connectToAudio, 3000);
+                };
+                
+                audioWs.onerror = () => {
+                    console.log('⚠️ EQ: Ошибка WebSocket, пробую analyser');
+                    tryConnectToParentAnalyser();
+                };
+            } catch (e) {
+                console.log('⚠️ EQ: WebSocket не доступен, пробую analyser');
+                tryConnectToParentAnalyser();
+            }
+        }
+        
+        // === СТАТУС ИЗ RENDERER (через electronAPI) ===
+        function listenToStatus() {
+            try {
+                if (window.parent && window.parent.electronAPI) {
+                    // Получаем статус через onPluginStatus
+                    window.parent.electronAPI.onPluginStatus((event, status) => {
+                        console.log('📥 Статус из renderer:', status);
+                        
+                        if (status.isPlaying !== undefined) {
+                            isPlaying = status.isPlaying;
+                            demoMode = false;
+                        }
+                        
+                        if (status.accentColor && status.accentColor !== '') {
+                            accentColor = status.accentColor;
+                            applyAccentColor(accentColor);
+                        }
+                        
+                        if (status.title && status.title !== 'Не играет') {
+                            document.title = `🎨 ${status.title}`;
+                        }
+                    });
+                    
+                    // Запрашиваем текущий статус
+                    window.parent.electronAPI.getPluginStatus?.().then(status => {
+                        if (status) {
+                            if (status.accentColor) applyAccentColor(status.accentColor);
+                            if (status.isPlaying !== undefined) isPlaying = status.isPlaying;
+                        }
+                    }).catch(() => {});
+                }
+            } catch (e) {
+                console.log('⚠️ Не удалось подключиться к статусу renderer');
+            }
+        }
+        
+        // === ПОДКЛЮЧЕНИЕ К РОДИТЕЛЬСКОМУ ANALYSER ===
+        let parentAnalyser = null;
+        let parentDataArray = null;
+        
+        function tryConnectToParentAnalyser() {
+            try {
+                if (window.parent && window.parent.analyser) {
+                    parentAnalyser = window.parent.analyser;
+                    parentDataArray = new Uint8Array(parentAnalyser.frequencyBinCount);
+                    console.log('✅ EQ: Подключен к analyser родителя');
+                    statusText.textContent = '🎧 Analyser';
+                    statusText.className = 'status-text audio';
+                    hasAudio = true;
+                    demoMode = false;
+                } else {
+                    useFakeData = true;
+                    demoMode = true;
+                    statusText.textContent = '🎨 Демо-режим';
+                    statusText.className = 'status-text';
+                }
+            } catch (e) {
+                useFakeData = true;
+                demoMode = true;
+            }
+        }
+        
+        function applyAccentColor(color) {
+            document.documentElement.style.setProperty('--accent', color);
+            const rgb = hexToRgb(color);
+            if (rgb) {
+                document.documentElement.style.setProperty('--accent-glow', 
+                    `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`);
+            }
+        }
+        
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+        
+        // === ИНИЦИАЛИЗАЦИЯ ===
+        for (let i = 0; i < BAR_COUNT; i++) {
+            bars.push({ height: 0, target: 0, phase: Math.random() * Math.PI * 2 });
+        }
+        
+        // === РЕЗАЙЗ ===
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 38;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+        
+        // === ПОЛУЧЕНИЕ ДАННЫХ ===
+        function getAudioData() {
+            // 1. Через WebSocket от C#
+            if (audioConnected && hasAudio && audioData.length > 0) {
+                return audioData;
+            }
+            
+            // 2. Через родительский analyser
+            if (parentAnalyser && parentDataArray) {
+                try {
+                    parentAnalyser.getByteFrequencyData(parentDataArray);
+                    const floatData = new Float32Array(parentDataArray.length);
+                    for (let i = 0; i < parentDataArray.length; i++) {
+                        floatData[i] = parentDataArray[i] / 255;
+                    }
+                    return floatData;
+                } catch (e) {}
+            }
+            
+            // 3. Фейковые данные (демо-режим)
+            if (useFakeData || demoMode) {
+                const fake = new Float32Array(1024);
+                const time = Date.now() / 1000;
+                for (let i = 0; i < fake.length; i++) {
+                    fake[i] = (Math.sin(i * 0.1 + time * 2) * 0.3 + 0.3) * (Math.random() * 0.3 + 0.7);
+                }
+                return fake;
+            }
+            
+            return null;
+        }
+        
+        // === ОТРИСОВКА ===
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const data = getAudioData();
+            const w = canvas.width / BAR_COUNT;
+            const centerY = canvas.height / 2;
+            
+            // Обновляем бары из аудиоданных
+            if (data && data.length > 0) {
+                const step = Math.floor(data.length / BAR_COUNT);
+                for (let i = 0; i < BAR_COUNT; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < step && i * step + j < data.length; j++) {
+                        sum += Math.abs(data[i * step + j] || 0);
+                    }
+                    const avg = sum / step;
+                    let value = avg * 2;
+                    if (value < 0.01) value = 0.01;
+                    bars[i].target = Math.min(1, value);
+                }
+            } else {
+                for (let i = 0; i < BAR_COUNT; i++) {
+                    bars[i].target = 0.02;
+                }
+            }
+            
+            // Плавное обновление
+            for (let i = 0; i < bars.length; i++) {
+                bars[i].height += (bars[i].target - bars[i].height) * 0.25;
+            }
+            
+            // === РЕЖИМЫ ===
+            switch(mode) {
+                case 0: drawBars(w, centerY); break;
+                case 1: drawWave(w, centerY); break;
+                case 2: drawCircle(centerY); break;
+            }
+            
+            // Статус
+            if (!demoMode && audioConnected) {
+                statusText.textContent = isPlaying ? '▶ Играет' : '⏸ Пауза';
+                statusText.className = isPlaying ? 'status-text playing' : 'status-text';
+            } else if (demoMode) {
+                statusText.textContent = '🎨 Демо-режим';
+                statusText.className = 'status-text';
+            } else {
+                statusText.textContent = '⏳ Ожидание...';
+                statusText.className = 'status-text';
+            }
+            
+            animFrame = requestAnimationFrame(draw);
+        }
+        
+        // === РЕЖИМЫ ОТРИСОВКИ ===
+        function drawBars(w, centerY) {
+            for (let i = 0; i < bars.length; i++) {
+                const height = Math.max(2, bars[i].height * canvas.height * 0.45);
+                const x = i * w;
+                
+                const grad = ctx.createLinearGradient(x, centerY - height, x, centerY + height);
+                const alpha = 0.2 + (height / (canvas.height * 0.45)) * 0.8;
+                grad.addColorStop(0, accentColor + '00');
+                grad.addColorStop(0.4, accentColor);
+                grad.addColorStop(0.6, accentColor);
+                grad.addColorStop(1, accentColor + '00');
+                
+                ctx.fillStyle = grad;
+                ctx.shadowColor = accentColor + '33';
+                ctx.shadowBlur = height > 10 ? 20 : 0;
+                ctx.fillRect(x + 1, centerY - height, w - 2, height * 2);
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        function drawWave(w, centerY) {
+            ctx.beginPath();
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 3;
+            ctx.shadowColor = accentColor + '44';
+            ctx.shadowBlur = 20;
+            
+            for (let i = 0; i <= canvas.width; i += 2) {
+                const idx = Math.floor(i / w);
+                const height = bars[idx]?.height * canvas.height * 0.35 || 0;
+                const y = centerY + Math.sin(i * 0.02 + Date.now() / 1000) * height * 0.5;
+                if (i === 0) ctx.moveTo(i, y);
+                else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+        
+        function drawCircle(centerY) {
+            const radius = Math.min(canvas.width, canvas.height) * 0.25;
+            const centerX = canvas.width / 2;
+            
+            for (let i = 0; i < bars.length; i++) {
+                const angle = (i / bars.length) * Math.PI * 2;
+                const r = radius * (0.3 + bars[i].height * 0.7);
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+                
+                const size = 2 + bars[i].height * 12;
+                ctx.beginPath();
+                ctx.fillStyle = accentColor;
+                ctx.shadowColor = accentColor + '44';
+                ctx.shadowBlur = 15;
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // === УПРАВЛЕНИЕ ===
+        modeBtn.addEventListener('click', () => {
+            mode = (mode + 1) % 3;
+            const modeNames = ['📊 Полоски', '〰️ Волна', '⭕ Круг'];
+            modeBtn.title = modeNames[mode];
+        });
+        
+        
+        // === ЗАПУСК ===
+        // Подключаемся к аудио от C#
+        connectToAudio();
+        
+        // Подписываемся на статус из renderer
+        setTimeout(listenToStatus, 500);
+        
+        // Запускаем отрисовку
+        setTimeout(draw, 500);
+        
+        console.log('🎨 EQ Visualizer Plugin loaded!');
+        console.log('📋 Источники:');
+        console.log('  1. Аудио: WebSocket от C# (ws://localhost:9876/audio-stream)');
+        console.log('  2. Статус: из renderer через electronAPI');
+        console.log('  3. Акцентный цвет: из приложения');
+        console.log('🎨 Режимы: Полоски → Волна → Круг');
+    </script>
+</body>
+</html>
