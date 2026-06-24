@@ -39,6 +39,19 @@
             "updated": "2026-06-23",
             "permissions": ["storage", "media"],
             "requires": "3.0.0"
+        },
+        {
+            "id": "api-tester",
+            "name": "🔬 API Tester Pro",
+            "version": "1.0.0",
+            "description": "Полный тест всех API MusicHub: статус, медиа, обложка, управление, звуки",
+            "author": "MusicHub Labs",
+            "icon": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/api-tester/icon.png",
+            "download": "https://raw.githubusercontent.com/Mamba1230/musichub-plugins/refs/heads/main/plugins/api-tester/api-tester.zip",
+            "category": "utils",
+            "updated": "2026-06-24",
+            "permissions": ["storage", "media", "controls", "artwork"],
+            "requires": "3.0.0"
         }
     ]
 }
