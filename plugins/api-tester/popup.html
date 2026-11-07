@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Tester</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        button, input, select, textarea { font-family: inherit; }
+        .hidden { display: none !important; }
+
+        /* === ТАЙТЛБАР (без изменений) === */
+        .custom-titlebar {
+            position: fixed; top: 0; left: 0; right: 0; height: 38px;
+            background: #141414; display: flex; align-items: center;
+            padding: 0 12px; -webkit-app-region: drag;
+            border-bottom: 1px solid #2a2a2a; z-index: 1000;
+        }
+        .custom-titlebar .title {
+            flex: 1; font-size: 13px; font-weight: 600; color: #ddd;
+            -webkit-app-region: drag;
+        }
+        .custom-titlebar .controls {
+            display: flex; gap: 8px; -webkit-app-region: no-drag;
+        }
+        .custom-titlebar .controls button {
+            background: none; border: none; color: #666; font-size: 14px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            transition: all 0.2s; line-height: 1;
+        }
+        .custom-titlebar .controls .close-btn:hover {
+            background: #ff4444; color: #fff;
+        }
+
+        /* === КАРКАС === */
+        .app {
+            position: fixed; top: 38px; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column;
+        }
+        .tabs {
+            display: flex; gap: 2px; padding: 8px 12px 0;
+            background: #181818; border-bottom: 1px solid #262626;
+            overflow-x: auto; flex-shrink: 0;
+        }
+        .tabs::-webkit-scrollbar { height: 0; }
+        .tab {
+            background: none; border: none; color: #777; font-size: 12px; font-weight: 600;
+            padding: 8px 12px; cursor: pointer; white-space: nowrap;
+            border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+        }
+        .tab:hover { color: #ccc; }
+        .tab.active { color: #fff; border-bottom-color: var(--accent, #1DB954); }
+        .tab .count {
+            font-size: 10px; font-weight: 600; color: #999; background: rgba(255,255,255,0.07);
+            border-radius: 8px; padding: 1px 6px; margin-left: 4px;
+        }
+
+        .panes { flex: 1; min-height: 0; position: relative; }
+        .pane { position: absolute; inset: 0; overflow-y: auto; padding: 14px 16px; display: none; }
+        .pane.active { display: block; }
+        .pane::-webkit-scrollbar, .log-area::-webkit-scrollbar, pre::-webkit-scrollbar { width: 4px; height: 4px; }
+        .pane::-webkit-scrollbar-thumb, .log-area::-webkit-scrollbar-thumb, pre::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        /* === КАРТОЧКИ === */
+        .card {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.8px; color: #666; margin-bottom: 10px;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .hint { font-size: 11px; color: #777; line-height: 1.5; }
+        .hint b { color: #aaa; font-weight: 600; }
+        .muted { color: #666; }
+        .mono { font-family: Consolas, 'Courier New', monospace; }
+
+        .btn-s {
+            padding: 6px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500;
+            cursor: pointer; background: rgba(255,255,255,0.07); color: #ccc; transition: all .15s;
+        }
+        .btn-s:hover { background: rgba(255,255,255,0.14); color: #fff; }
+        .btn-s:disabled { opacity: .4; cursor: default; }
+        .btn-s.accent { background: var(--accent, #1DB954); color: #000; font-weight: 600; }
+        .btn-s.accent:hover { opacity: .85; }
+        .btn-s.armed { background: #ff4444; color: #fff; }
+        .field {
+            background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 6px; color: #ddd;
+            padding: 6px 10px; font-size: 12px; outline: none; min-width: 0;
+        }
+        .field:focus { border-color: var(--accent, #1DB954); }
+        pre.out {
+            background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 8px 10px;
+            font-family: Consolas, 'Courier New', monospace; font-size: 11px; line-height: 1.5;
+            color: #7fdbca; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+        }
+        pre.out.err { color: #ff6b6b; }
+        pre.out.ok { color: #69db7c; }
+
+        /* === ПЛЕЕР === */
+        .track-info { display: flex; gap: 14px; align-items: center; }
+        .track-info .artwork {
+            width: 72px; height: 72px; border-radius: 8px; object-fit: cover;
+            background: #222; border: 1px solid #333; flex-shrink: 0;
+        }
+        .track-info .artwork-placeholder {
+            width: 72px; height: 72px; border-radius: 8px; background: #222; border: 1px dashed #333;
+            display: flex; align-items: center; justify-content: center; font-size: 24px; color: #555; flex-shrink: 0;
+        }
+        .track-info .details { flex: 1; min-width: 0; }
+        .track-info .details .name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .track-info .details .artist { font-size: 13px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .track-info .details .album { font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .track-info .details .status { font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 6px; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; transition: all 0.3s; }
+        .dot.playing { background: #1DB954; animation: pulse 1s infinite; }
+        .dot.paused { background: #f39c12; }
+        @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.8); } }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+        .chip {
+            font-size: 11px; padding: 3px 9px; border-radius: 10px;
+            background: rgba(255,255,255,0.06); color: #aaa; border: 1px solid transparent;
+        }
+        .chip.good { color: #69db7c; border-color: rgba(105,219,124,.3); }
+        .chip.warn { color: #ffd93d; border-color: rgba(255,217,61,.35); }
+        .chip.bad { color: #ff6b6b; border-color: rgba(255,107,107,.35); }
+
+        .seek-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+        .seek-row .t { font-size: 11px; color: #888; min-width: 38px; font-variant-numeric: tabular-nums; }
+        .seek-row .t:last-child { text-align: right; }
+        input[type="range"] { -webkit-appearance: none; height: 4px; background: #333; border-radius: 2px; outline: none; flex: 1; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+            background: var(--accent, #1DB954); cursor: pointer;
+        }
+        input[type="range"]:disabled { opacity: .35; }
+
+        .controls-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .controls-grid .btn {
+            padding: 10px; border: none; border-radius: 8px; font-size: 18px; cursor: pointer;
+            transition: all 0.2s; background: rgba(255,255,255,0.06); color: #fff; font-weight: 500;
+        }
+        .controls-grid .btn:hover { transform: scale(1.04); background: rgba(255,255,255,0.1); }
+        .controls-grid .btn:active { transform: scale(0.95); }
+        .controls-grid .btn-play { background: var(--accent, #1DB954); color: #000; }
+        .controls-grid .btn-play:hover { opacity: 0.85; }
+        .controls-grid .btn-danger { background: #ff4444; color: #fff; }
+        .controls-grid .btn-danger:hover { background: #cc3333; }
+
+        .volume-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+        .volume-row .lbl { font-size: 12px; color: #999; min-width: 74px; }
+        .volume-row .vol-value { font-size: 13px; font-weight: 600; min-width: 44px; text-align: right; color: #999; }
+
+        details.raw { margin-top: 10px; }
+        details.raw summary { font-size: 11px; color: #777; cursor: pointer; }
+        details.raw pre { margin-top: 8px; }
+
+        /* === ОБОЗРЕВАТЕЛЬ API === */
+        .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+        .toolbar .field { flex: 1; min-width: 140px; }
+        .seg { display: flex; gap: 2px; background: rgba(255,255,255,0.04); padding: 2px; border-radius: 7px; }
+        .seg button { background: none; border: none; color: #888; font-size: 11px; padding: 4px 9px; border-radius: 5px; cursor: pointer; }
+        .seg button.on { background: rgba(255,255,255,0.12); color: #fff; }
+        .check { font-size: 11px; color: #888; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        .cat { margin-bottom: 10px; }
+        .cat-head {
+            font-size: 11px; font-weight: 700; color: #777; letter-spacing: .6px; text-transform: uppercase;
+            padding: 6px 2px; cursor: pointer; display: flex; justify-content: space-between; user-select: none;
+        }
+        .cat-head:hover { color: #bbb; }
+        .m {
+            border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);
+            border-radius: 8px; margin-bottom: 4px; overflow: hidden;
+        }
+        .m-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; cursor: pointer; }
+        .m-head:hover { background: rgba(255,255,255,0.03); }
+        .m-name { font-family: Consolas, 'Courier New', monospace; font-size: 12px; color: #ddd; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .m-desc { font-size: 10px; color: #666; white-space: nowrap; }
+        .risk { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: lowercase; flex-shrink: 0; }
+        .risk.read  { background: rgba(105,219,124,.12); color: #69db7c; }
+        .risk.ctrl  { background: rgba(116,192,252,.12); color: #74c0fc; }
+        .risk.write { background: rgba(255,217,61,.12);  color: #ffd93d; }
+        .risk.ai    { background: rgba(190,130,255,.14); color: #be82ff; }
+        .risk.secret{ background: rgba(255,107,107,.14); color: #ff6b6b; }
+        .m-body { padding: 0 10px 10px; }
+        .m-args { display: flex; gap: 6px; margin-bottom: 8px; }
+        .m-args .field { flex: 1; font-family: Consolas, 'Courier New', monospace; }
+        .snap-item { margin-bottom: 4px; }
+        .snap-item summary { font-size: 12px; font-family: Consolas, monospace; color: #bbb; cursor: pointer; padding: 3px 0; }
+        .snap-item summary.bad { color: #ff6b6b; }
+        .snap-item pre { margin: 4px 0 8px; }
+
+        /* === СОБЫТИЯ === */
+        .ev {
+            display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);
+            margin-bottom: 4px; cursor: pointer;
+        }
+        .ev:hover { background: rgba(255,255,255,0.04); }
+        .ev.sel { border-color: var(--accent, #1DB954); }
+        .ev .n { flex: 1; font-family: Consolas, monospace; font-size: 12px; color: #ddd; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .ev .c { font-size: 11px; color: #777; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+        .ev .ago { font-size: 10px; color: #555; min-width: 56px; text-align: right; }
+        .ev.flash { animation: flash .6s; }
+        @keyframes flash { from { background: rgba(105,219,124,.25); } to { background: rgba(255,255,255,0.02); } }
+
+        /* === ЗВУК === */
+        .meter-wrap { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 8px; }
+        canvas#audioCanvas { width: 100%; height: 120px; display: block; }
+        .verdict { font-size: 14px; font-weight: 600; margin: 10px 0 2px; }
+        .verdict.yes { color: #69db7c; } .verdict.no { color: #ff6b6b; } .verdict.none { color: #ffd93d; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+        .stat { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px 10px; }
+        .stat .k { font-size: 10px; color: #666; }
+        .stat .v { font-size: 14px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+        .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+        /* === HTTP === */
+        .http-line { display: flex; gap: 6px; margin-bottom: 8px; }
+        .http-line select { width: 84px; }
+        .http-line .field:nth-child(2) { flex: 1; }
+        textarea.field { width: 100%; min-height: 56px; resize: vertical; font-family: Consolas, monospace; margin-bottom: 8px; }
+        #httpImg { max-width: 100%; max-height: 220px; border-radius: 8px; margin-bottom: 8px; display: block; }
+
+        /* === ЛОГ (нижняя панель) === */
+        .dock { flex-shrink: 0; background: #141414; border-top: 1px solid #262626; height: 148px; display: flex; flex-direction: column; transition: height .2s; }
+        .dock.collapsed { height: 32px; }
+        .dock-head { display: flex; align-items: center; gap: 6px; padding: 5px 12px; flex-shrink: 0; }
+        .dock-head .ttl { flex: 1; font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; user-select: none; }
+        .dock-head button { padding: 3px 10px; border: none; border-radius: 4px; font-size: 10px; cursor: pointer; background: rgba(255,255,255,0.06); color: #999; }
+        .dock-head button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        .log-area {
+            flex: 1; min-height: 0; margin: 0 12px 10px; background: #0a0a0a; border-radius: 8px; padding: 8px 10px;
+            overflow-y: auto; font-family: 'Courier New', monospace; font-size: 10px; line-height: 1.6;
+            color: #7fdbca; border: 1px solid #1a1a1a;
+        }
+        .dock.collapsed .log-area { display: none; }
+        .log-entry { padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,0.03); word-break: break-word; }
+        .log-entry .time { color: #555; margin-right: 6px; }
+        .log-entry.error { color: #ff6b6b; } .log-entry.success { color: #69db7c; }
+        .log-entry.warning { color: #ffd93d; } .log-entry.info { color: #74c0fc; }
+    </style>
+</head>
+<body>
+
+    <!-- ТАЙТЛБАР (как в реальных плагинах) -->
+    <div class="custom-titlebar">
+        <span class="title">🔬 API Tester</span>
+        <div class="controls">
+            <button class="close-btn" onclick="window.close()">✕</button>
+        </div>
+    </div>
+
+    <div class="app">
+        <nav class="tabs" id="tabs">
+            <button class="tab active" data-tab="player">🎵 Плеер</button>
+            <button class="tab" data-tab="explorer">🧪 Все API <span class="count" id="apiCount">…</span></button>
+            <button class="tab" data-tab="events">📡 События</button>
+            <button class="tab" data-tab="audio">🔊 Звук</button>
+            <button class="tab" data-tab="http">🌐 HTTP</button>
+        </nav>
+
+        <main class="panes">
+
+            <!-- ============ ПЛЕЕР ============ -->
+            <section class="pane active" id="pane-player">
+                <div class="card">
+                    <div class="card-title">Сейчас играет</div>
+                    <div class="track-info">
+                        <img id="artwork" class="artwork" src="" alt="Обложка" style="display:none;">
+                        <div id="artworkPlaceholder" class="artwork-placeholder">🎵</div>
+                        <div class="details">
+                            <div class="name" id="trackName">—</div>
+                            <div class="artist" id="trackArtist">—</div>
+                            <div class="album" id="trackAlbum"></div>
+                            <div class="status">
+                                <span class="dot paused" id="statusDot"></span>
+                                <span id="statusText">Ожидание...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chips" id="chipRow"></div>
+                    <div class="seek-row">
+                        <span class="t" id="timeCur">--:--</span>
+                        <input type="range" id="seek" min="0" max="1000" value="0" disabled>
+                        <span class="t" id="timeTotal">--:--</span>
+                    </div>
+                    <details class="raw">
+                        <summary>Сырые данные медиа-сессии</summary>
+                        <pre class="out" id="rawInfo">—</pre>
+                    </details>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Управление</div>
+                    <div class="controls-grid">
+                        <button class="btn" id="prevBtn">⏮</button>
+                        <button class="btn btn-play" id="playBtn">▶</button>
+                        <button class="btn" id="nextBtn">⏭</button>
+                        <button class="btn btn-danger" id="stopBtn">⏹</button>
+                    </div>
+                    <div class="volume-row">
+                        <span class="lbl">🎚 MusicHub</span>
+                        <input type="range" id="appVol" min="1" max="100" value="50">
+                        <span class="vol-value" id="appVolDisplay">50%</span>
+                    </div>
+                    <div class="volume-row">
+                        <span class="lbl">🖥 Система</span>
+                        <input type="range" id="sysVol" min="1" max="100" value="50">
+                        <span class="vol-value" id="sysVolDisplay">—</span>
+                    </div>
+                    <div class="row" style="margin-top:10px;">
+                        <button class="btn-s" id="muteBtn">🔇 Mute: ?</button>
+                        <button class="btn-s" id="sysRefreshBtn">🔄 Обновить</button>
+                        <span class="hint">Громкость ограничена снизу: 1%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ ВСЕ API ============ -->
+            <section class="pane" id="pane-explorer">
+                <div class="card">
+                    <div class="card-title">
+                        <span>Обозреватель electronAPI</span>
+                        <span id="apiStats" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500;"></span>
+                    </div>
+                    <div class="toolbar">
+                        <input class="field" id="apiSearch" placeholder="Поиск метода…">
+                        <div class="seg" id="riskChips">
+                            <button class="on" data-risk="all">все</button>
+                            <button data-risk="read">чтение</button>
+                            <button data-risk="ctrl">управление</button>
+                            <button data-risk="write">запись</button>
+                            <button data-risk="ai">AI</button>
+                        </div>
+                    </div>
+                    <div class="toolbar" style="margin-bottom:0;">
+                        <button class="btn-s accent" id="snapshotBtn">📸 Снимок всех read-методов</button>
+                        <button class="btn-s" id="rescanBtn">🔄 Пересканировать</button>
+                        <label class="check"><input type="checkbox" id="showSecrets"> показывать ключи</label>
+                    </div>
+                    <div class="hint" style="margin-top:8px;">
+                        Список строится из реально доступного <span class="mono">electronAPI</span> — новые методы появятся сами.
+                        Методы «запись» и «AI» просят подтверждение вторым кликом.
+                    </div>
+                    <div class="hint" id="missingNote" style="margin-top:6px;"></div>
+                </div>
+
+                <div class="card hidden" id="snapshotCard">
+                    <div class="card-title">
+                        <span id="snapshotTitle">Снимок</span>
+                        <button class="btn-s" id="snapshotCopy">📋 Копировать JSON</button>
+                    </div>
+                    <div id="snapshotOut"></div>
+                </div>
+
+                <div id="methodList"></div>
+            </section>
+
+            <!-- ============ СОБЫТИЯ ============ -->
+            <section class="pane" id="pane-events">
+                <div class="card">
+                    <div class="card-title">
+                        <span>Подписки on…</span>
+                        <span class="row">
+                            <button class="btn-s" id="eventAll">все в лог</button>
+                            <button class="btn-s" id="eventNone">ничего</button>
+                        </span>
+                    </div>
+                    <div class="hint" style="margin-bottom:10px;">
+                        Подписка на все события включена сразу. Галочка у события — писать ли его в лог
+                        (счётчик считает всегда). Клик по строке — показать последние данные.
+                    </div>
+                    <div id="eventList"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><span id="eventLastTitle">Последнее событие</span></div>
+                    <pre class="out" id="eventLast">Выберите событие в списке</pre>
+                </div>
+            </section>
+
+            <!-- ============ ЗВУК ============ -->
+            <section class="pane" id="pane-audio">
+                <div class="card">
+                    <div class="card-title">
+                        <span>Аудиопоток VolumeController</span>
+                        <button class="btn-s" id="audioToggle">Подключить</button>
+                    </div>
+                    <div class="meter-wrap"><canvas id="audioCanvas" width="600" height="240"></canvas></div>
+                    <div class="verdict none" id="audioVerdict">⏳ Нет подключения</div>
+                    <div class="hint" id="audioSub">ws://localhost:9876/audio-stream</div>
+                    <div class="stats">
+                        <div class="stat"><div class="k">пакетов/с</div><div class="v" id="stPps">0</div></div>
+                        <div class="stat"><div class="k">пик (int16)</div><div class="v" id="stPeak">0</div></div>
+                        <div class="stat"><div class="k">уровень, dBFS</div><div class="v" id="stDb">−∞</div></div>
+                        <div class="stat"><div class="k">макс. пик</div><div class="v" id="stMax">0</div></div>
+                        <div class="stat"><div class="k">размер пакета</div><div class="v" id="stPkt">—</div></div>
+                        <div class="stat"><div class="k">тишина, с</div><div class="v" id="stSilence">—</div></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><span>Порог «звук есть»</span></div>
+                    <div class="row">
+                        <input class="field" id="thrInput" type="number" min="0" max="32767" value="3" style="width:90px;">
+                        <span class="hint">Как в приложении: <b>AUDIO_SOUND_PEAK = 3</b>, тишина &gt; 4 с = пауза</span>
+                        <button class="btn-s" id="maxResetBtn">сбросить макс.</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><span>Тест: влияет ли громкость на поток</span></div>
+                    <div class="hint" style="margin-bottom:10px;">
+                        Включите музыку, нажмите кнопку. Тест на 3 с ставит громкость MusicHub 1%, затем 30%, замеряет пик и возвращает всё обратно.
+                        Если пик при 30% в десятки раз больше, чем при 1% — поток снимается <b>после</b> громкости, и порог нужно держать ниже пика на 1%.
+                    </div>
+                    <button class="btn-s accent" id="volTestBtn">📐 Запустить тест</button>
+                    <pre class="out hidden" id="volTestOut" style="margin-top:10px;"></pre>
+                </div>
+            </section>
+
+            <!-- ============ HTTP ============ -->
+            <section class="pane" id="pane-http">
+                <div class="card">
+                    <div class="card-title"><span>Запрос к локальным серверам</span></div>
+                    <div class="toolbar">
+                        <select class="field" id="httpPreset" style="flex:1;"></select>
+                    </div>
+                    <div class="http-line">
+                        <select class="field" id="httpMethod"><option>GET</option><option>POST</option></select>
+                        <input class="field" id="httpUrl" value="http://localhost:9876/audio-devices">
+                        <button class="btn-s accent" id="httpSend">Отправить</button>
+                    </div>
+                    <textarea class="field" id="httpBody" placeholder="Тело запроса (JSON) — для POST"></textarea>
+                    <img id="httpImg" class="hidden" alt="">
+                    <pre class="out" id="httpOut">—</pre>
+                </div>
+            </section>
+        </main>
+
+        <!-- ============ ЛОГ ============ -->
+        <div class="dock" id="dock">
+            <div class="dock-head">
+                <span class="ttl" id="dockToggle">📋 Лог <span id="logCount" class="muted">0</span> ▾</span>
+                <button id="clearLogBtn">🗑️ Очистить</button>
+                <button id="exportLogBtn">📤 Экспорт</button>
+            </div>
+            <div class="log-area" id="logArea"></div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

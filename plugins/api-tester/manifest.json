@@ -1,0 +1,11 @@
+{
+    "id": "api-tester",
+    "name": "🔬 API Tester Pro",
+    "version": "2.0.0",
+    "description": "Обозреватель всего electronAPI MusicHub: плеер, все методы, события, аудио-метр, HTTP",
+    "author": "MusicHub Labs",
+    "icon": "icon.png",
+    "main": "main.js",
+    "renderer": "renderer.js",
+    "permissions": ["storage", "media", "controls", "artwork"]
+}
