@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Tester</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* === ТАЙТЛБАР === */
+        .custom-titlebar {
+            position: fixed; top: 0; left: 0; right: 0; height: 38px;
+            background: #141414; display: flex; align-items: center;
+            padding: 0 12px; -webkit-app-region: drag;
+            border-bottom: 1px solid #2a2a2a; z-index: 1000;
+        }
+        .custom-titlebar .title {
+            flex: 1; font-size: 13px; font-weight: 600; color: #ddd;
+            -webkit-app-region: drag;
+        }
+        .custom-titlebar .controls {
+            display: flex; gap: 8px; -webkit-app-region: no-drag;
+        }
+        .custom-titlebar .controls button {
+            background: none; border: none; color: #666; font-size: 14px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            transition: all 0.2s; line-height: 1;
+        }
+        .custom-titlebar .controls .close-btn:hover {
+            background: #ff4444; color: #fff;
+        }
+        
+        /* === КОНТЕНТ === */
+        .container {
+            margin-top: 38px;
+            padding: 16px 20px;
+            height: calc(100% - 38px);
+            overflow-y: auto;
+        }
+        .container::-webkit-scrollbar { width: 4px; }
+        .container::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+        
+        /* === КАРТОЧКИ === */
+        .card {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        /* === ТРЕК === */
+        .track-info {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+        .track-info .artwork {
+            width: 64px;
+            height: 64px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #222;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+        .track-info .artwork-placeholder {
+            width: 64px;
+            height: 64px;
+            border-radius: 8px;
+            background: #222;
+            border: 1px dashed #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #555;
+            flex-shrink: 0;
+        }
+        .track-info .details {
+            flex: 1;
+            min-width: 0;
+        }
+        .track-info .details .name {
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-info .details .artist {
+            font-size: 13px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-info .details .status {
+            font-size: 12px;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .track-info .details .status .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+        .track-info .details .status .dot.playing {
+            background: #1DB954;
+            animation: pulse 1s infinite;
+        }
+        .track-info .details .status .dot.paused {
+            background: #f39c12;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+        
+        /* === КНОПКИ УПРАВЛЕНИЯ === */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .controls-grid .btn {
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            font-weight: 500;
+        }
+        .controls-grid .btn:hover { transform: scale(1.04); background: rgba(255,255,255,0.1); }
+        .controls-grid .btn:active { transform: scale(0.95); }
+        .controls-grid .btn-play {
+            background: var(--accent, #1DB954);
+            color: #000;
+        }
+        .controls-grid .btn-play:hover { opacity: 0.85; }
+        .controls-grid .btn-danger {
+            background: #ff4444;
+            color: #fff;
+        }
+        .controls-grid .btn-danger:hover { background: #cc3333; }
+        
+        /* === ГРОМКОСТЬ === */
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .volume-row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            outline: none;
+        }
+        .volume-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent, #1DB954);
+            cursor: pointer;
+        }
+        .volume-row .vol-value {
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 40px;
+            text-align: right;
+            color: #999;
+        }
+        
+        /* === ТЕСТОВЫЕ КНОПКИ === */
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .test-grid .btn-test {
+            padding: 7px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.05);
+            color: #ccc;
+        }
+        .test-grid .btn-test:hover {
+            background: rgba(255,255,255,0.12);
+            transform: scale(1.02);
+        }
+        .test-grid .btn-test.success { border-left: 3px solid #1DB954; }
+        .test-grid .btn-test.info { border-left: 3px solid #3498db; }
+        .test-grid .btn-test.warning { border-left: 3px solid #f39c12; }
+        .test-grid .btn-test.danger { border-left: 3px solid #ff4444; }
+        
+        /* === ЛОГ === */
+        .log-area {
+            background: #0a0a0a;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 100px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            line-height: 1.6;
+            color: #7fdbca;
+            border: 1px solid #1a1a1a;
+        }
+        .log-area .log-entry {
+            padding: 1px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .log-area .log-entry .time { color: #555; margin-right: 8px; }
+        .log-area .log-entry.error { color: #ff6b6b; }
+        .log-area .log-entry.success { color: #69db7c; }
+        .log-area .log-entry.warning { color: #ffd93d; }
+        .log-area .log-entry.info { color: #74c0fc; }
+        
+        .log-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .log-actions button {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.06);
+            color: #999;
+        }
+        .log-actions button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        
+        /* === ЦВЕТ === */
+        .color-preview {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-left: 8px;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- ТАЙТЛБАР (как в реальных плагинах) -->
+    <div class="custom-titlebar">
+        <span class="title">🔬 API Tester</span>
+        <div class="controls">
+            <button class="close-btn" onclick="window.close()">✕</button>
+        </div>
+    </div>
+    
+    <!-- КОНТЕНТ -->
+    <div class="container">
+        
+        <!-- Трек -->
+        <div class="card">
+            <div class="card-title">🎵 Текущий трек</div>
+            <div class="track-info">
+                <img id="artwork" class="artwork" src="" alt="Обложка" style="display:none;">
+                <div id="artworkPlaceholder" class="artwork-placeholder">🎵</div>
+                <div class="details">
+                    <div class="name" id="trackName">—</div>
+                    <div class="artist" id="trackArtist">—</div>
+                    <div class="status">
+                        <span class="dot paused" id="statusDot"></span>
+                        <span id="statusText">Ожидание...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Управление -->
+        <div class="card">
+            <div class="card-title">🎮 Управление</div>
+            <div class="controls-grid">
+                <button class="btn btn-play" id="playBtn">▶</button>
+                <button class="btn" id="prevBtn">⏮</button>
+                <button class="btn" id="nextBtn">⏭</button>
+                <button class="btn btn-danger" id="stopBtn">⏹</button>
+            </div>
+            <div class="volume-row">
+                <span>🔊</span>
+                <input type="range" id="volumeSlider" min="0" max="100" value="50">
+                <span class="vol-value" id="volumeDisplay">50%</span>
+            </div>
+        </div>
+        
+        <!-- Тесты API -->
+        <div class="card">
+            <div class="card-title">🧪 Тесты API</div>
+            <div class="test-grid">
+                <button class="btn-test success" id="testStatusBtn">📊 Get Status</button>
+                <button class="btn-test info" id="testMediaBtn">💾 Get Media</button>
+                <button class="btn-test warning" id="testArtworkBtn">🖼️ Get Artwork</button>
+                <button class="btn-test danger" id="testColorBtn">🎨 Get Color</button>
+                <button class="btn-test success" id="testAllBtn">🚀 Test All</button>
+            </div>
+        </div>
+        
+        <!-- Лог -->
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-title">📋 Лог</div>
+            <div class="log-area" id="logArea">
+                <div class="log-entry info"><span class="time">[запуск]</span> 🔬 API Tester загружен</div>
+            </div>
+            <div class="log-actions">
+                <button id="clearLogBtn">🗑️ Очистить</button>
+                <button id="exportLogBtn">📤 Экспорт</button>
+            </div>
+        </div>
+        
+    </div>
+    
+    <script src="renderer.js"></script>
+</body>
+</html>

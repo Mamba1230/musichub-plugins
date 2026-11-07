@@ -1,0 +1,11 @@
+{
+    "id": "api-tester",
+    "name": "🔬 API Tester Pro",
+    "version": "1.0.0",
+    "description": "Полный тест всех API MusicHub: статус, медиа, обложка, управление, звук",
+    "author": "MusicHub Labs",
+    "icon": "icon.png",
+    "main": "main.js",
+    "renderer": "renderer.js",
+    "permissions": ["storage", "media", "controls", "artwork"]
+}
